@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UC-084 BB84 QKD Simulator</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#071526;color:#eef6ff;padding:20px}
+.container{max-width:1100px;margin:auto}
+h1{margin:0 0 6px;font-size:30px}
+.subtitle{color:#a8bfd6;margin-bottom:20px}
+.panel{background:#0d2036;border:1px solid #294862;border-radius:14px;padding:18px;margin-bottom:16px}
+.flow{display:grid;grid-template-columns:1fr 2fr 1fr;gap:15px;align-items:center}
+.node{text-align:center;background:#102943;border:1px solid #31506d;border-radius:12px;padding:20px}
+.node .icon{font-size:40px}
+.node h3{margin:8px 0 5px}
+.node p{color:#a8bfd6;font-size:13px}
+.channel{text-align:center}
+.line{height:8px;background:#28658e;border-radius:10px;position:relative;margin:25px 0}
+.photon{position:absolute;width:18px;height:18px;background:#bcecff;border-radius:50%;top:-5px;box-shadow:0 0 12px #5bbcff;animation:move 2s linear infinite}
+.p2{animation-delay:.7s}.p3{animation-delay:1.4s}
+@keyframes move{0%{left:-2%}100%{left:100%}}
+.eve{color:#a8bfd6;font-size:13px}
+.eve.active{color:#ff687a;font-weight:bold}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+select,button{padding:12px 15px;border-radius:9px;border:1px solid #41617b;background:#102943;color:white;font-size:15px}
+button{background:#17608c;cursor:pointer;font-weight:bold}
+button:hover{background:#217aaa}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+.stat{background:#102943;border-radius:10px;padding:14px;text-align:center}
+.value{font-size:25px;font-weight:bold}.label{font-size:12px;color:#a8bfd6;margin-top:4px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:700px}
+th,td{padding:9px;text-align:center;border-bottom:1px solid #294862}
+th{color:#a8bfd6}
+.keep{color:#55d6a0;font-weight:bold}.error{color:#ff687a;font-weight:bold}.discard{color:#a8bfd6}
+.result{padding:15px;border-left:4px solid #55d6a0;background:#102943;border-radius:8px;line-height:1.6}
+.result.warning{border-color:#ff687a}
+.steps{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}
+.step{background:#102943;border-radius:9px;padding:12px;text-align:center;font-size:12px}
+.step b{display:block;color:#5bbcff;font-size:18px;margin-bottom:6px}
+@media(max-width:700px){.flow{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.steps{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>UC-084: Secure Military Communication using QKD</h1>
+<div class="subtitle">Interactive BB84 Quantum Key Distribution Simulation</div>
+
+<div class="panel">
+<div class="flow">
+<div class="node"><div class="icon">🏢</div><h3>Military HQ</h3><p>Alice generates random bits and quantum bases.</p></div>
+<div class="channel">
+<strong>Quantum Channel</strong>
+<div class="line"><span class="photon"></span><span class="photon p2"></span><span class="photon p3"></span></div>
+<div id="eveStatus" class="eve">Normal quantum transmission</div>
+</div>
+<div class="node"><div class="icon">🛡️</div><h3>Defense Unit</h3><p>Bob randomly measures the received qubits.</p></div>
+</div>
+</div>
+
+<div class="panel">
+<div class="controls">
+<label for="eve">Eavesdropper:</label>
+<select id="eve">
+<option value="off">OFF — Normal communication</option>
+<option value="on">ON — Eve intercepts qubits</option>
+</select>
+<button onclick="runSimulation()">▶ Run BB84 Simulation</button>
+</div>
+<div class="stats">
+<div class="stat"><div id="sent" class="value">16</div><div class="label">Qubits sent</div></div>
+<div class="stat"><div id="kept" class="value">—</div><div class="label">Matching bases</div></div>
+<div class="stat"><div id="qber" class="value">—</div><div class="label">QBER / Error rate</div></div>
+<div class="stat"><div id="key" class="value">—</div><div class="label">Candidate key bits</div></div>
+</div>
+</div>
+
+<div class="panel">
+<h3>BB84 Protocol Trace</h3>
+<div class="table-wrap"><table id="trace"></table></div>
+</div>
+
+<div class="panel">
+<h3>Security Check</h3>
+<div id="result" class="result">Click <b>Run BB84 Simulation</b> to start.</div>
+</div>
+
+<div class="panel">
+<h3>How the Demonstration Works</h3>
+<div class="steps">
+<div class="step"><b>1</b>Generate random bits</div>
+<div class="step"><b>2</b>Encode with bases</div>
+<div class="step"><b>3</b>Send qubits</div>
+<div class="step"><b>4</b>Measure randomly</div>
+<div class="step"><b>5</b>Compare bases</div>
+<div class="step"><b>6</b>Check errors</div>
+<div class="step"><b>7</b>Build candidate key</div>
+</div>
+</div>
+</div>
+
+<script>
+function randomBit(){return Math.random()<0.5?0:1}
+function randomBasis(){return Math.random()<0.5?'Z':'X'}
+
+function runSimulation(){
+ const intercepted=document.getElementById('eve').value==='on';
+ const n=16;
+ let rows=[],kept=0,errors=0;
+
+ for(let i=0;i<n;i++){
+   const aliceBit=randomBit();
+   const aliceBasis=randomBasis();
+   const bobBasis=randomBasis();
+   let eveBasis='—',eveBit='—',bobBit;
+
+   if(intercepted){
+     eveBasis=randomBasis();
+     eveBit=(eveBasis===aliceBasis)?aliceBit:randomBit();
+     bobBit=(eveBasis===bobBasis)?eveBit:randomBit();
+   }else{
+     bobBit=(aliceBasis===bobBasis)?aliceBit:randomBit();
+   }
+
+   const match=aliceBasis===bobBasis;
+   if(match){
+     kept++;
+     if(bobBit!==aliceBit) errors++;
+   }
+
+   rows.push({i:i+1,aliceBit,aliceBasis,bobBasis,bobBit,eveBasis,eveBit,match});
+ }
+
+ const qber=kept?errors/kept:0;
+
+ document.getElementById('sent').textContent=n;
+ document.getElementById('kept').textContent=kept;
+ document.getElementById('qber').textContent=(qber*100).toFixed(1)+'%';
+ document.getElementById('key').textContent=kept;
+
+ let table='<thead><tr><th>#</th><th>Alice Bit</th><th>Alice Basis</th><th>Bob Basis</th><th>Bob Result</th>';
+ if(intercepted)table+='<th>Eve Basis</th><th>Eve Result</th>';
+ table+='<th>Status</th></tr></thead><tbody>';
+
+ rows.forEach(r=>{
+   let status='DISCARD',cls='discard';
+   if(r.match){
+     if(r.bobBit===r.aliceBit){status='KEEP';cls='keep'}
+     else{status='ERROR';cls='error'}
+   }
+   table+=`<tr>
+   <td>${r.i}</td><td>${r.aliceBit}</td><td>${r.aliceBasis}</td>
+   <td>${r.bobBasis}</td><td>${r.bobBit}</td>`;
+   if(intercepted)table+=`<td>${r.eveBasis}</td><td>${r.eveBit}</td>`;
+   table+=`<td class="${cls}">${status}</td></tr>`;
+ });
+ table+='</tbody>';
+ document.getElementById('trace').innerHTML=table;
+
+ const status=document.getElementById('eveStatus');
+ const result=document.getElementById('result');
+
+ if(intercepted){
+   status.textContent='⚠ Eve intercepts and measures qubits';
+   status.className='eve active';
+   result.className='result warning';
+   result.innerHTML=`<b>Eavesdropping scenario:</b> Eve measures and resends qubits. If Eve chooses the wrong basis, the quantum state can be disturbed. In this run, the sifted-key error rate (QBER) is <b>${(qber*100).toFixed(1)}%</b>. Alice and Bob can detect this disturbance by testing part of their shared bits.`;
+ }else{
+   status.textContent='✓ Normal quantum transmission';
+   status.className='eve';
+   result.className='result';
+   result.innerHTML=`<b>Normal scenario:</b> Alice and Bob discard positions where their bases differ. Matching-basis positions form a candidate shared key. A real BB84 implementation would then perform error correction and privacy amplification before using the key.`;
+ }
+}
+
+runSimulation();
+</script>
+</body>
+</html>
